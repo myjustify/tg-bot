@@ -1,0 +1,17 @@
+name = "tg-bot"
+main = "src/index.js"
+compatibility_date = "2025-06-06"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id-here"
+
+[vars]
+BOT_TOKEN = "your-bot-token-here"
+CHANNEL_ID = "-100xxxxxxxxxxx"
+ADMIN_IDS = "your-telegram-user-id"
+WEBHOOK_SECRET = "your-webhook-secret-at-least-32-chars"
+ACCESS_PASSWORD = "your-strong-password"
+
+[triggers]
+crons = ["*/5 * * * *"]
