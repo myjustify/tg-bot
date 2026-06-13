@@ -83,19 +83,25 @@ export async function listPosts(days, env) {
   try {
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     const posts = [];
+    let cursor;
 
-    // KV list 最多 1000 条，按字典序返回（post:timestamp_userId）
-    // 由于 post: 后面是时间戳，字典序即时间序
-    const list = await env.KV.list({ prefix: KV_PREFIX.POST });
-    for (const key of list.keys) {
-      const raw = await env.KV.get(key.name);
-      if (!raw) continue;
-      const post = JSON.parse(raw);
-      if (post.timestamp >= cutoff) {
-        post._key = key.name; // 附加 KV key 便于前端删除操作
-        posts.push(post);
+    do {
+      const list = await env.KV.list({ prefix: KV_PREFIX.POST, cursor });
+      for (const key of list.keys) {
+        try {
+          const raw = await env.KV.get(key.name);
+          if (!raw) continue;
+          const post = JSON.parse(raw);
+          if (post.timestamp >= cutoff) {
+            post._key = key.name; // 附加 KV key 便于前端删除操作
+            posts.push(post);
+          }
+        } catch (parseErr) {
+          console.error('listPosts: corrupted entry', key.name, parseErr);
+        }
       }
-    }
+      cursor = list.list_complete ? undefined : list.cursor;
+    } while (cursor);
 
     // 按时间戳倒序排列
     posts.sort((a, b) => b.timestamp - a.timestamp);
@@ -246,21 +252,29 @@ export async function listExpiredSessions(env) {
   try {
     const now = Date.now();
     const expired = [];
-    const list = await env.KV.list({ prefix: KV_PREFIX.TEMP });
+    let cursor;
 
-    for (const key of list.keys) {
-      const raw = await env.KV.get(key.name);
-      if (!raw) continue;
-      const session = JSON.parse(raw);
-      const elapsed = now - (session.lastActivity || 0);
-      if (elapsed > SESSION_TTL * 1000) {
-        // 从 key 名提取 chatId（temp:123456 → 123456）
-        const chatId = parseInt(key.name.slice(KV_PREFIX.TEMP.length), 10);
-        if (!isNaN(chatId)) {
-          expired.push({ chatId, session });
+    do {
+      const list = await env.KV.list({ prefix: KV_PREFIX.TEMP, cursor });
+      for (const key of list.keys) {
+        try {
+          const raw = await env.KV.get(key.name);
+          if (!raw) continue;
+          const session = JSON.parse(raw);
+          const elapsed = now - (session.lastActivity || 0);
+          if (elapsed > SESSION_TTL * 1000) {
+            // 从 key 名提取 chatId（temp:123456 → 123456）
+            const chatId = parseInt(key.name.slice(KV_PREFIX.TEMP.length), 10);
+            if (!isNaN(chatId)) {
+              expired.push({ chatId, session });
+            }
+          }
+        } catch (parseErr) {
+          console.error('listExpiredSessions: corrupted entry', key.name, parseErr);
         }
       }
-    }
+      cursor = list.list_complete ? undefined : list.cursor;
+    } while (cursor);
 
     return expired;
   } catch (e) {

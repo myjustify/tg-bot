@@ -54,8 +54,8 @@ export async function processMessage(msg, env) {
     return;
   }
 
-  if (session && session.state === STATE.AWAITING_TYPE) {
-    // 已有会话，追加素材
+  if (session && (session.state === STATE.AWAITING_TYPE || session.state === STATE.AWAITING_CONFIRM)) {
+    // 已有会话，追加素材（确认阶段也可追加）
     await handleAdditionalMedia(chatId, msg, session, env);
     return;
   }
@@ -106,18 +106,32 @@ export async function processCallback(query, env) {
     case CB.ANON_YES:
       session.isAnonymous = true;
       await saveSession(chatId, session, env);
-      await showCaptionButtons(chatId, env);
+      // 纯文字投稿跳过文案询问，直接转发
+      if (session.text && session.media.length === 0) {
+        await forward(chatId, env);
+      } else {
+        await showCaptionButtons(chatId, env);
+      }
       break;
 
     case CB.ANON_NO:
       session.isAnonymous = false;
       await saveSession(chatId, session, env);
-      await showCaptionButtons(chatId, env);
+      // 纯文字投稿跳过文案询问，直接转发
+      if (session.text && session.media.length === 0) {
+        await forward(chatId, env);
+      } else {
+        await showCaptionButtons(chatId, env);
+      }
       break;
 
     case CB.CAPTION_NO:
-      // 直接转发
-      await forward(chatId, env);
+      // 多图投稿显示确认预览，单图/纯文字直接转发
+      if (session.media.length > 1) {
+        await showConfirmButtons(chatId, env);
+      } else {
+        await forward(chatId, env);
+      }
       break;
 
     case CB.CAPTION_YES:
@@ -127,9 +141,17 @@ export async function processCallback(query, env) {
       await sendMessage(
         chatId,
         '📝 请直接发送你的投稿文案（文字消息即可）：',
-        undefined,
+        {
+          inline_keyboard: [[
+            { text: '❌ 取消投稿', callback_data: CB.CANCEL },
+          ]],
+        },
         env
       );
+      break;
+
+    case CB.CONFIRM_SEND:
+      await forward(chatId, env);
       break;
 
     case CB.CANCEL:
@@ -156,9 +178,16 @@ async function handleStart(chatId, env) {
   }, env);
 
   const text = '👋 你好！欢迎使用匿名投稿机器人。\n\n'
-    + '请直接发送你想要投稿的素材（图片/视频），单次最多 <b>9</b> 个。\n\n'
-    + '也支持纯文字投稿，直接发送文字即可。';
-  await sendMessage(chatId, text, undefined, env);
+    + '请直接发送你想要投稿的素材（图片/视频），单次最多 <b>9</b> 个。\n'
+    + '也支持纯文字投稿，直接发送文字即可。\n\n'
+    + '发送 /stop 可取消当前投稿。';
+
+  const keyboard = {
+    inline_keyboard: [[
+      { text: '📝 开始投稿', callback_data: 'start_submit' },
+    ]],
+  };
+  await sendMessage(chatId, text, keyboard, env);
 }
 
 /**
@@ -338,6 +367,35 @@ async function showCaptionButtons(chatId, env) {
   }
 }
 
+/**
+ * 显示"确认发送 / 取消"按钮（多图投稿预览确认）
+ */
+async function showConfirmButtons(chatId, env) {
+  const session = await getSession(chatId, env);
+  if (!session) return;
+
+  const anonLabel = session.isAnonymous ? '🙈 匿名' : '👤 实名';
+  const mediaCount = session.media.length;
+  const captionPreview = session.text
+    ? (session.text.length > 100 ? session.text.slice(0, 100) + '...' : session.text)
+    : '（无）';
+
+  const previewText = `<b>📋 投稿预览</b>\n\n`
+    + `类型：${anonLabel}\n`
+    + `素材：${mediaCount} 个\n`
+    + `文案：${captionPreview}\n\n`
+    + '确认发送到频道？';
+
+  session.state = STATE.AWAITING_CONFIRM;
+  await saveSession(chatId, session, env);
+
+  const sent = await sendMessage(chatId, previewText, buildConfirmKeyboard(), env);
+  if (session && sent.result) {
+    session.messageIds.push(sent.result.message_id);
+    await saveSession(chatId, session, env);
+  }
+}
+
 // ============================================================
 // Inline Keyboard 构建
 // ============================================================
@@ -365,6 +423,17 @@ function buildCaptionKeyboard() {
       ],
       [
         { text: '❌ 取消投稿', callback_data: CB.CANCEL },
+      ],
+    ],
+  };
+}
+
+function buildConfirmKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ 确认发送', callback_data: CB.CONFIRM_SEND },
+        { text: '❌ 取消', callback_data: CB.CANCEL },
       ],
     ],
   };

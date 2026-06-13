@@ -64,11 +64,16 @@ export default {
    * Cron 定时任务（每 5 分钟处理超时会话）
    */
   async scheduled(event, env, ctx) {
-    const expired = await listExpiredSessions(env);
-    if (expired.length > 0) {
-      // 并发处理超时会话
-      await Promise.all(expired.map(({ chatId }) => forward(chatId, env, true)));
-      console.log(`[Cron] Processed ${expired.length} expired sessions`);
+    try {
+      const expired = await listExpiredSessions(env);
+      if (expired.length > 0) {
+        // 并发处理超时会话
+        await Promise.all(expired.map(({ chatId }) => forward(chatId, env, true)));
+        console.log(`[Cron] Processed ${expired.length} expired sessions`);
+      }
+    } catch (e) {
+      console.error('[Cron] Error:', e);
+      throw e;
     }
   },
 };
@@ -199,6 +204,15 @@ async function handleDelete(request, env) {
     } catch (e) {
       console.error('deleteMessage failed:', e);
       // 频道删除失败不阻塞 KV 删除
+    }
+  }
+
+  // 同步清理 msgmap 映射（防止孤立的频道消息→用户映射）
+  if (post && post.channelMsgId) {
+    try {
+      await env.KV.delete('msgmap:' + post.channelMsgId);
+    } catch (e) {
+      console.error('handleDelete: failed to delete msgmap', e);
     }
   }
 

@@ -12,17 +12,22 @@ const BASE_URL = 'https://api.telegram.org';
  * @returns {Promise<object>} API 响应 JSON
  */
 export async function callTG(method, params, env) {
-  const url = `${BASE_URL}/bot${env.BOT_TOKEN}/${method}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  const json = await res.json();
-  if (!json.ok) {
-    console.error(`TG API error [${method}]:`, json.description, params);
+  try {
+    const url = `${BASE_URL}/bot${env.BOT_TOKEN}/${method}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      console.error(`TG API error [${method}]:`, json.description, params);
+    }
+    return json;
+  } catch (e) {
+    console.error(`TG API network error [${method}]:`, e.message, params);
+    return { ok: false, description: e.message };
   }
-  return json;
 }
 
 /**
@@ -129,7 +134,7 @@ export async function setMyCommands(env) {
 export function extractMedia(msg) {
   const items = [];
 
-  if (msg.photo) {
+  if (msg.photo && msg.photo.length > 0) {
     // photo 是数组，取最大尺寸（最后一个）
     const largest = msg.photo[msg.photo.length - 1];
     items.push({ type: 'photo', file_id: largest.file_id });

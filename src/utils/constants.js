@@ -15,6 +15,7 @@ export const STATE = {
   READY: 'READY',
   AWAITING_TYPE: 'AWAITING_TYPE',
   AWAITING_CAPTION: 'AWAITING_CAPTION',
+  AWAITING_CONFIRM: 'AWAITING_CONFIRM',
 };
 
 /** 素材数量上限（Telegram media group 限制） */
@@ -35,6 +36,7 @@ export const CB = {
   ANON_NO: 'anon_no',
   CAPTION_NO: 'caption_no',
   CAPTION_YES: 'caption_yes',
+  CONFIRM_SEND: 'confirm_send',
   CANCEL: 'cancel',
   REPLY: 'reply',
 };

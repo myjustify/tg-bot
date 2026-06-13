@@ -2,8 +2,9 @@
 // 转发器 — 将素材/文字发送到频道并通知用户
 // ============================================================
 
-import { getSession, deleteSession, savePost, saveMsgMapping } from '../storage/kv.js';
+import { getSession, deleteSession, saveSession, savePost, saveMsgMapping } from '../storage/kv.js';
 import { sendMessage, copyMessage, sendMediaGroup, buildMediaGroup } from '../utils/telegram.js';
+import { STATE } from '../utils/constants.js';
 
 /**
  * 执行转发投稿
@@ -40,6 +41,11 @@ export async function forward(chatId, env, isTimedOut = false) {
     if (session.media.length === 0 && session.text) {
       const caption = session.text + attribution;
       const sent = await sendMessage(channelId, caption, undefined, env);
+      if (!sent.ok) {
+        await sendMessage(chatId, `❌ 投稿失败：${sent.description || '未知错误'}`, undefined, env);
+        await deleteSession(chatId, env);
+        return;
+      }
       if (sent.result) {
         await saveRecordAndNotify(chatId, sent.result, session, isAnonymous, username, channelId, env, isTimedOut);
       }
@@ -51,6 +57,11 @@ export async function forward(chatId, env, isTimedOut = false) {
         // 有文案：用 sendMediaGroup 发单媒体 + caption
         const media = buildMediaGroup(session.media, session.text + attribution);
         const sent = await sendMediaGroup(channelId, media, env);
+        if (!sent.ok) {
+          await sendMessage(chatId, `❌ 投稿失败：${sent.description || '未知错误'}`, undefined, env);
+          await deleteSession(chatId, env);
+          return;
+        }
         if (sent.result && sent.result.length > 0) {
           await saveRecordAndNotify(chatId, sent.result[0], session, isAnonymous, username, channelId, env, isTimedOut);
         }
@@ -59,6 +70,11 @@ export async function forward(chatId, env, isTimedOut = false) {
         const srcChatId = chatId;
         const srcMsgId = session.messageIds[0];
         const sent = await copyMessage(channelId, srcChatId, srcMsgId, env);
+        if (!sent.ok) {
+          await sendMessage(chatId, `❌ 投稿失败：${sent.description || '未知错误'}`, undefined, env);
+          await deleteSession(chatId, env);
+          return;
+        }
         if (sent.result) {
           // 附加投稿人标注
           const attrMsg = await sendMessage(channelId, attribution.trim(), undefined, env);
@@ -72,6 +88,11 @@ export async function forward(chatId, env, isTimedOut = false) {
       const caption = session.text ? session.text + attribution : attribution;
       const media = buildMediaGroup(session.media, caption);
       const sent = await sendMediaGroup(channelId, media, env);
+      if (!sent.ok) {
+        await sendMessage(chatId, `❌ 投稿失败：${sent.description || '未知错误'}`, undefined, env);
+        await deleteSession(chatId, env);
+        return;
+      }
       if (sent.result && sent.result.length > 0) {
         await saveRecordAndNotify(chatId, sent.result[0], session, isAnonymous, username, channelId, env, isTimedOut);
       }
@@ -81,8 +102,12 @@ export async function forward(chatId, env, isTimedOut = false) {
     await sendMessage(chatId, '❌ 投稿失败，请稍后重试。', undefined, env);
   }
 
-  // 清理临时会话
+  // 清理临时会话并自动创建新会话（无需重新 /start）
   await deleteSession(chatId, env);
+  await saveSession(chatId, {
+    state: STATE.READY,
+    lastActivity: Date.now(),
+  }, env);
 }
 
 // ============================================================
@@ -134,8 +159,9 @@ async function saveRecordAndNotify(
   } else if (isAnonymous) {
     notifyText = '✅ 你的投稿已匿名发送到频道！';
   } else {
-    notifyText = `✅ 你的投稿已实名发送到频道！\n📮 署名：@${username || chatId}`;
+    notifyText = `✅ 你的投稿已实名发送到频道！\n📮 署名：@${username}`;
   }
+  notifyText += '\n💡 你可以继续发送素材进行下一次投稿。';
   await sendMessage(chatId, notifyText, undefined, env);
 }
 

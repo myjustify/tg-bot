@@ -327,8 +327,24 @@ function renderPostList(posts) {
         alert('网络错误，请重试');
       }
     }
-    // 每 60 秒自动刷新
-    setTimeout(() => location.reload(), 60000);
+    // 每 60 秒自动刷新（Lightbox 打开时暂停计时）
+    let refreshPaused = false, refreshTimer;
+    function scheduleRefresh() {
+      clearTimeout(refreshTimer);
+      if (!refreshPaused) {
+        refreshTimer = setTimeout(() => location.reload(), 60000);
+      }
+    }
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash.startsWith('#lb-')) {
+        refreshPaused = true;
+        clearTimeout(refreshTimer);
+      } else {
+        refreshPaused = false;
+        scheduleRefresh();
+      }
+    });
+    scheduleRefresh();
   </script>
 </body>
 </html>`;
@@ -357,6 +373,7 @@ function buildMediaCell(media, postIdx) {
   const showPhotos = photos.slice(0, maxShow);
   for (let i = 0; i < showPhotos.length; i++) {
     const p = showPhotos[i];
+    if (!p.file_id) continue;
     const imgUrl = `/api/image?file_id=${encodeURIComponent(p.file_id)}`;
     const lbId = `lb-${postIdx}-${i}`;
     cellHtml += `<a href="#${lbId}"><img src="${imgUrl}" style="max-height:120px;max-width:180px;border-radius:6px;margin-right:4px;vertical-align:middle;object-fit:cover;cursor:pointer;" loading="lazy" alt="" title="点击放大查看"></a>`;
