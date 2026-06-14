@@ -5,3 +5,4 @@ dist/
 .env
 wrangler.toml
 cf_token.txt
+.claude/settings.local.json

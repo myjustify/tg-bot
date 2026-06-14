@@ -139,9 +139,8 @@ async function handleGroupReply(msg, env) {
   // 保存回复上下文，供投稿者点击"回复"按钮后使用
   await saveReplyContext(mapping.userId, {
     channelMsgId,
-    // 讨论组中的回复需要回复到频道时，引用的是频道评论消息本身
-    // 但由于群组消息 ID 和频道消息 ID 不同，这里保存群组消息 ID
-    commentMsgId: msg.message_id,  // 注：此 ID 是群组中的 ID，回复时会发到频道
+    commentMsgId: msg.message_id,
+    replyChatId: msg.chat.id,    // 群组 chat ID，回复时发到此群组
     isGroupReply: true,
   }, env);
 

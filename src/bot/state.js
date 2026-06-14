@@ -39,8 +39,10 @@ export async function processMessage(msg, env) {
   }
 
   // 检查是否有活跃的回复上下文（评论回复功能）
+  // 仅纯文本消息走回复逻辑，带媒体（photo/video）的消息跳过，走正常投稿
+  const hasMedia = !!(msg.photo || msg.video);
   const replyCtx = await getReplyContext(chatId, env);
-  if (replyCtx && text) {
+  if (replyCtx && text && !hasMedia) {
     await handleReplyMessage(chatId, text, replyCtx, env);
     return;
   }
@@ -171,6 +173,9 @@ export async function processCallback(query, env) {
  * /start 指令处理
  */
 async function handleStart(chatId, env) {
+  // 清理可能存在的回复上下文（用户通过 /start 退出回复状态）
+  await deleteReplyContext(chatId, env);
+
   // 创建就绪会话（必须先 /start 才能投稿）
   await saveSession(chatId, {
     state: STATE.READY,
@@ -451,12 +456,13 @@ async function handleCancel(chatId, env) {
  * 处理投稿者通过回复按钮发送的回复
  * @param {number} chatId
  * @param {string} text - 回复文本
- * @param {object} replyCtx - { channelMsgId, commentMsgId }
+ * @param {object} replyCtx - { channelMsgId, commentMsgId, replyChatId? }
  * @param {object} env
  */
 async function handleReplyMessage(chatId, text, replyCtx, env) {
-  // 发送回复到频道（引用评论消息）
-  await sendMessage(env.CHANNEL_ID, text, undefined, env, replyCtx.commentMsgId);
+  // 发送回复到评论所在的 chat（讨论组或频道），引用评论消息
+  const targetChatId = replyCtx.replyChatId || env.CHANNEL_ID;
+  await sendMessage(targetChatId, text, undefined, env, replyCtx.commentMsgId);
 
   // 清理回复上下文
   await deleteReplyContext(chatId, env);
