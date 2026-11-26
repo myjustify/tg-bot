@@ -160,6 +160,10 @@ export async function processCallback(query, env) {
       await handleCancel(chatId, env);
       break;
 
+    case 'start_submit':
+      await sendMessage(chatId, '请直接发送你想要投稿的素材（图片/视频），单次最多 9 个，也支持纯文字投稿，直接发送文字即可。', undefined, env);
+      break;
+
     default:
       break;
   }
