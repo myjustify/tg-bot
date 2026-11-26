@@ -93,11 +93,14 @@ export async function editMessageText(chatId, messageId, text, replyMarkup, env)
  * 回答 Callback Query（关闭按钮 loading 状态）
  */
 export async function answerCallbackQuery(callbackId, text, env) {
-  return callTG('answerCallbackQuery', {
+  const params = {
     callback_query_id: callbackId,
-    text,
-    show_alert: !!text,
-  }, env);
+  };
+  if (text) {
+    params.text = text;
+    params.show_alert = true;
+  }
+  return callTG('answerCallbackQuery', params, env);
 }
 
 /**
