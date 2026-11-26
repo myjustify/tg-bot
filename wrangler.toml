@@ -1,0 +1,22 @@
+name = "tg-bot"
+main = "src/index.js"
+compatibility_date = "2025-06-06"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "e551bee7465c4b06a75ec244da354b54"
+
+[vars]
+CHANNEL_ID = "-1005849135040"
+ADMIN_IDS = "5110720342"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+
+
+
+
+
+
+
